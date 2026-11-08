@@ -232,6 +232,7 @@ func TestDomainHTTPSResourceUpdate(t *testing.T) {
 	for _, tc := range []struct {
 		name          string
 		alreadyTarget bool
+		configuring   bool
 		writeError    bool
 		verifyError   bool
 		readError     bool
@@ -254,6 +255,8 @@ func TestDomainHTTPSResourceUpdate(t *testing.T) {
 		{name: "native-write-failure-retains-prior-state", writeError: true, wantError: true, wantWrites: 1, wantObserve: 1, wantVerify: 1},
 		{name: "native-verification-failure-retains-prior-state", verifyError: true, wantError: true, wantObserve: 1, wantVerify: 1},
 		{name: "already-target-zero-write-recovery", alreadyTarget: true, wantReads: 1, wantObserve: 3, wantVerify: 2},
+		{name: "already-target-configuring-zero-write-recovery", alreadyTarget: true, configuring: true, wantReads: 1, wantObserve: 3, wantVerify: 2},
+		{name: "old-binding-configuring-blocks-write", configuring: true, wantError: true, wantObserve: 1},
 		{name: "cloud-control-readback-lag", readLag: 2, wantWrites: 1, wantReads: 3, wantObserve: 3, wantVerify: 2},
 		{name: "cloud-control-never-converges", neverConverge: true, wantError: true, wantWrites: 1, wantReads: 4, wantObserve: 3, wantVerify: 2},
 		{name: "cloud-control-read-error", readError: true, wantError: true, wantWrites: 1, wantReads: 1, wantObserve: 3, wantVerify: 2},
@@ -310,6 +313,9 @@ func TestDomainHTTPSResourceUpdate(t *testing.T) {
 			before, target := fixture.observation(false), fixture.observation(true)
 			if tc.alreadyTarget {
 				before = target
+			}
+			if tc.configuring {
+				before.Status = "configuring"
 			}
 			api := &domainHTTPSAPIFake{observations: []httpsObservation{before, target, target}}
 			if tc.writeError {

@@ -209,19 +209,22 @@ func decodeHTTPSObservation(raw map[string]interface{}, domain string) (httpsObs
 	}
 	otherConfig := make(map[string]interface{}, len(config))
 	for key, value := range config {
-		if key != "HTTPS" && key != "UpdateTime" && key != "Status" {
+		switch key {
+		case "HTTPS", "CreateTime", "CreatedTime", "UpdateTime", "UpdatedTime",
+			"Status", "LockStatus", "DomainLock", "IsConflictDomain", "Cname",
+			"BackupOrigin", "PrimaryOrigin", "CacheShared", "CacheSharedTargetHost":
+			// Operational/derived fields declared read-only by the CDN Cloud
+			// Control schema, plus native API timestamp aliases. Domain/CNAME
+			// identity and readiness are checked independently by the waiter.
+			continue
+		default:
 			otherConfig[key] = value
 		}
 	}
-	otherResult := make(map[string]interface{}, len(result))
-	for key, value := range result {
-		if key == "DomainConfig" {
-			otherResult[key] = normalizeOtherCDNConfig(otherConfig)
-		} else {
-			otherResult[key] = value
-		}
-	}
-	otherEncoded, err := json.Marshal(otherResult)
+	// FeatureConfig and ModuleLockConfig are result-level service state, not
+	// the desired domain configuration. They can change during deployment and
+	// must not cause a landed certificate update to fail the drift check.
+	otherEncoded, err := json.Marshal(normalizeOtherCDNConfig(otherConfig))
 	if err != nil {
 		return out, errors.New("unable to encode other CDN configuration")
 	}

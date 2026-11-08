@@ -150,6 +150,71 @@ func TestNativeHTTPSSetOrderDoesNotHideOrderedPolicyDrift(t *testing.T) {
 	}
 }
 
+func TestNativeHTTPSIgnoresOperationalReadbackChanges(t *testing.T) {
+	cases := map[string]func(map[string]interface{}){
+		"configuring status":          func(raw map[string]interface{}) { nativeHTTPSConfig(raw)["Status"] = "configuring" },
+		"native update time":          func(raw map[string]interface{}) { nativeHTTPSConfig(raw)["UpdateTime"] = 2 },
+		"Cloud Control update time":   func(raw map[string]interface{}) { nativeHTTPSConfig(raw)["UpdatedTime"] = 2 },
+		"native creation time":        func(raw map[string]interface{}) { nativeHTTPSConfig(raw)["CreateTime"] = 2 },
+		"Cloud Control creation time": func(raw map[string]interface{}) { nativeHTTPSConfig(raw)["CreatedTime"] = 2 },
+		"module locks": func(raw map[string]interface{}) {
+			raw["Result"].(map[string]interface{})["ModuleLockConfig"] = map[string]interface{}{"Lock": true}
+		},
+		"feature availability": func(raw map[string]interface{}) {
+			raw["Result"].(map[string]interface{})["FeatureConfig"] = map[string]interface{}{"Feature": false}
+		},
+		"read-only lock status": func(raw map[string]interface{}) { nativeHTTPSConfig(raw)["LockStatus"] = "locked" },
+		"read-only domain lock": func(raw map[string]interface{}) {
+			nativeHTTPSConfig(raw)["DomainLock"] = map[string]interface{}{"Status": "on"}
+		},
+	}
+	before := nativeHTTPSObserved(t, "old-cert")
+	for name, change := range cases {
+		t.Run(name, func(t *testing.T) {
+			raw := nativeHTTPSFixture("new-cert")
+			change(raw)
+			after, err := decodeHTTPSObservation(raw, nativeHTTPSTestDomain)
+			if err != nil || before.SettingsHash != after.SettingsHash || before.OtherHash != after.OtherHash {
+				t.Fatalf("operational field became configuration drift: %v", err)
+			}
+		})
+	}
+}
+
+func TestNativeHTTPSStillDetectsConfigurationDrift(t *testing.T) {
+	cases := map[string]func(map[string]interface{}){
+		"routes": func(raw map[string]interface{}) {
+			nativeHTTPSConfig(raw)["OriginRewrite"] = map[string]interface{}{"Switch": false}
+		},
+		"cache": func(raw map[string]interface{}) {
+			nativeHTTPSConfig(raw)["Cache"] = []interface{}{map[string]interface{}{"Rule": "different-cache"}}
+		},
+		"headers": func(raw map[string]interface{}) {
+			nativeHTTPSConfig(raw)["ResponseHeader"] = []interface{}{map[string]interface{}{"Header": "different-header"}}
+		},
+		"origin": func(raw map[string]interface{}) {
+			nativeHTTPSConfig(raw)["Origin"] = []interface{}{map[string]interface{}{"OriginAction": map[string]interface{}{"OriginLines": []interface{}{map[string]interface{}{"Address": "different.example.com"}}}}}
+		},
+		"TLS": func(raw map[string]interface{}) { nativeHTTPSSettings(raw)["TlsVersion"] = []interface{}{"tlsv1.3"} },
+	}
+	before := nativeHTTPSObserved(t, "old-cert")
+	for name, change := range cases {
+		t.Run(name, func(t *testing.T) {
+			raw := nativeHTTPSFixture("new-cert")
+			change(raw)
+			after, err := decodeHTTPSObservation(raw, nativeHTTPSTestDomain)
+			if err != nil {
+				t.Fatal(err)
+			}
+			api := &nativeHTTPSTestAPI{current: before, reads: []httpsObservation{before, after}}
+			r := &domainHTTPSResource{api: api, wait: func(context.Context) error { return nil }, attempts: 4}
+			if err := r.updateCertificate(context.Background(), before.Domain, before.CNAME, before.Binding, after.Binding); err == nil || api.updates != 1 {
+				t.Fatalf("configuration drift was accepted or retried: err=%v writes=%d", err, api.updates)
+			}
+		})
+	}
+}
+
 func TestNativeHTTPSActualSDKProtocol(t *testing.T) {
 	var updateCount int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -300,6 +365,16 @@ func TestNativeHTTPSConvergenceAndRecovery(t *testing.T) {
 	configuringOld.Status, configuringNew.Status = "configuring", "configuring"
 	foreign := target
 	foreign.SettingsHash[0] ^= 1
+	operationalRaw := nativeHTTPSFixture("new-cert")
+	nativeHTTPSConfig(operationalRaw)["Status"] = "configuring"
+	nativeHTTPSConfig(operationalRaw)["LockStatus"] = "locked"
+	nativeHTTPSConfig(operationalRaw)["UpdateTime"] = 99
+	operationalRaw["Result"].(map[string]interface{})["ModuleLockConfig"] = map[string]interface{}{"Lock": true}
+	operationalRaw["Result"].(map[string]interface{})["FeatureConfig"] = map[string]interface{}{"Feature": false}
+	operational, err := decodeHTTPSObservation(operationalRaw, nativeHTTPSTestDomain)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, tc := range []struct {
 		name     string
 		reads    []httpsObservation
@@ -308,7 +383,11 @@ func TestNativeHTTPSConvergenceAndRecovery(t *testing.T) {
 		updates  int
 	}{
 		{"asynchronous", []httpsObservation{before, configuringOld, configuringNew, target, target}, nil, false, 1},
+		{"operational fields change while configuring", []httpsObservation{before, operational, target, target}, nil, false, 1},
 		{"already landed", []httpsObservation{target, target, target}, nil, false, 0},
+		{"already landed while configuring", []httpsObservation{configuringNew, configuringNew, target, target}, nil, false, 0},
+		{"already landed stays configuring", []httpsObservation{configuringNew, configuringNew}, nil, true, 0},
+		{"old binding configuring", []httpsObservation{configuringOld}, nil, true, 0},
 		{"never landed", []httpsObservation{before, before, before, before, before}, nil, true, 1},
 		{"write failed", []httpsObservation{before}, errors.New("response lost"), true, 1},
 		{"foreign settings", []httpsObservation{before, foreign}, nil, true, 1},

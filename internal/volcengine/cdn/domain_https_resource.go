@@ -250,8 +250,14 @@ func (r *domainHTTPSResource) updateCertificate(ctx context.Context, domain, cna
 	if err != nil {
 		return err
 	}
-	if before.CNAME != cname || before.Status != "online" || (before.Binding != old && before.Binding != target) {
-		return errors.New("live CDN identity/binding differs or another configuration is in progress; no update sent")
+	if before.CNAME != cname || (before.Binding != old && before.Binding != target) {
+		return errors.New("live CDN identity/binding differs; no update sent")
+	}
+	// An exact target may already have landed while CDN propagation continues.
+	// Resume polling without a second write; an old binding that is configuring
+	// still blocks a new mutation because another change may be in progress.
+	if before.Status != "online" && (before.Status != "configuring" || before.Binding != target) {
+		return errors.New("another CDN configuration is in progress; no update sent")
 	}
 	if err := r.api.Verify(ctx, domain, target); err != nil {
 		return err
