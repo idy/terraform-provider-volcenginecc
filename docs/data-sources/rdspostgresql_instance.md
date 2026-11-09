@@ -31,6 +31,7 @@ Data Source schema for Volcengine::RDSPostgreSQL::Instance
 - `instance_name` (String) Instance name
 - `instance_status` (String) Instance status
 - `instance_type` (String) Instance type. Value: HA (high availability edition)
+- `kms_trn` (String) KMS key ring TRN, format: trn:kms:<region>:<account_id>:keyrings/<ring_name>/keys/<key_name>. This parameter is required when TDEEnable is true.
 - `maintenance_window` (Attributes) Instance maintenance window (see [below for nested schema](#nestedatt--maintenance_window))
 - `memory` (Number) Memory size, unit: GB
 - `node_info` (Attributes List) Instance specification configuration (see [below for nested schema](#nestedatt--node_info))
@@ -48,6 +49,7 @@ Data Source schema for Volcengine::RDSPostgreSQL::Instance
 - `storage_wal_use` (Number) Used WAL file space of the instance's primary node. Unit: Byte
 - `subnet_id` (String) Subnet ID
 - `tags` (Attributes Set) Tag information of the cloud disk (see [below for nested schema](#nestedatt--tags))
+- `tde_enable` (Boolean) Specifies whether to enable the Transparent Data Encryption (TDE) feature. The default value is false (disabled). This feature can only be enabled when creating an instance, and is supported only for PostgreSQL 17 with local SSD storage. Once enabled, it cannot be disabled.
 - `update_time` (String) Instance update time
 - `vcpu` (Number) CPU size. For example: 1 means 1U
 - `vpc_id` (String) Use this parameter to specify the private network for the instance

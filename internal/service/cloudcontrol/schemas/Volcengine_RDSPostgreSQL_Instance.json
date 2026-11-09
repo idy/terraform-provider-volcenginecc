@@ -6,7 +6,9 @@
     "/properties/DBEngineVersion",
     "/properties/VpcId",
     "/properties/SubnetId",
-    "/properties/StorageType"
+    "/properties/StorageType",
+    "/properties/TDEEnable",
+    "/properties/KMSTrn"
   ],
   "definitions": {
     "Address": {
@@ -517,6 +519,10 @@
       "description": "Instance type. Value: HA (high availability edition)",
       "type": "string"
     },
+    "KMSTrn": {
+      "description": "KMS key ring TRN, format: trn:kms:\u003cregion\u003e:\u003caccount_id\u003e:keyrings/\u003cring_name\u003e/keys/\u003ckey_name\u003e. This parameter is required when TDEEnable is true.",
+      "type": "string"
+    },
     "MaintenanceWindow": {
       "$ref": "#/definitions/MaintenanceWindow",
       "description": "Instance maintenance window",
@@ -595,6 +601,10 @@
     "SubnetId": {
       "description": "Subnet ID",
       "type": "string"
+    },
+    "TDEEnable": {
+      "description": "Specifies whether to enable the Transparent Data Encryption (TDE) feature. The default value is false (disabled). This feature can only be enabled when creating an instance, and is supported only for PostgreSQL 17 with local SSD storage. Once enabled, it cannot be disabled.",
+      "type": "boolean"
     },
     "Tags": {
       "description": "Tag information of the cloud disk",
