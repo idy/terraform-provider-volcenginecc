@@ -8,6 +8,39 @@ Use the left navigation panel to explore available resource documentation. If yo
 > 1. The Volcengine Cloud Control provider requires the use of Terraform 1.0.7 or later. 
 > 2. This guide requires an available Volcengine account or sub-account to create resources.
 
+## In-place CDN certificate updates
+
+This fork updates an existing `volcenginecc_cdn_domain` in place when only its
+single ordinary certificate ID or source changes. Renewal may supply an unknown
+certificate ID during planning. The domain ID, CNAME and retained HTTPS settings
+stay unchanged; actual origin or other HTTPS configuration changes keep their
+original replacement behavior. The implementation wraps the existing resource,
+so its Terraform address and Cloud Control create/delete/import/refresh ownership
+are preserved.
+
+The native update sends only the domain and retained HTTPS module. It checks the
+candidate certificate and both native/Cloud Control readback, preserves configured
+credentials and proxy selection, and does not automatically retry uncertain writes
+or roll them back. Keep the prior certificate through separate edge verification
+and the rollback window; control-plane convergence does not prove global edge
+propagation. Inline, dual and Keyless certificate modes are outside this narrow
+update path. No source change or test authorizes a live certificate rotation.
+
+Offline validation uses synthetic state and local API fixtures:
+
+```bash
+make test-cdn-certificate
+```
+
+```bash
+make test-cdn-certificate-plan
+```
+
+The plan target requires Terraform and Python 3, builds an ignored local binary,
+and never runs Apply. `BASELINE_PROVIDER_BINARY` optionally selects an older
+binary to reproduce the replacement behavior as a regression control. Pull
+requests run the same tests through the CDN certificate workflow.
+
 ## Network Mirror Configuration
 
 If you experience slow provider downloads, you can configure a network mirror to accelerate the process. Add the following configuration to your Terraform CLI configuration file:

@@ -7,7 +7,7 @@ GO_VER              ?= go
 VERSION  			?=0.0.1
 
 
-.PHONY: set-version all build default docs docs-all docs-import golangci-lint help lint plural-data-sources resources schemas singular-data-sources test testacc tools
+.PHONY: set-version all build default docs docs-all docs-import golangci-lint help lint plural-data-sources resources schemas singular-data-sources test test-cdn-certificate test-cdn-certificate-plan testacc tools
 
 all: set-version schemas resources singular-data-sources plural-data-sources build docs-all ## Generate all schemas, resources, data sources, documentation, and build the provider
 
@@ -48,6 +48,14 @@ schemas: prereq-go ## Generate schemas
 
 test: prereq-go ## Run unit tests
 	$(GO_VER) test $(TEST) $(TESTARGS) -timeout=5m
+
+test-cdn-certificate: prereq-go ## Test CDN certificate updates without cloud credentials
+	TF_ACC= GOWORK=off $(GO_VER) test -race ./internal/volcengine/cdn ./internal/service/cloudcontrol -timeout=5m
+
+test-cdn-certificate-plan: prereq-go ## Build and verify certificate-only Terraform plans in disposable state
+	@mkdir -p bin
+	GOWORK=off $(GO_VER) build -o bin/terraform-provider-volcenginecc .
+	python3 scripts/test-cdn-certificate-plan.py $(if $(BASELINE_PROVIDER_BINARY),--baseline-provider "$(BASELINE_PROVIDER_BINARY)",)
 
 testacc: prereq-go ## Run acceptance tests
 	TF_ACC=1 $(GO_VER) test ./$(PKG_NAME) -v -count $(TEST_COUNT) -parallel $(ACCTEST_PARALLELISM) $(TESTARGS) -timeout $(ACCTEST_TIMEOUT)
