@@ -150,6 +150,56 @@ func TestNativeHTTPSSetOrderDoesNotHideOrderedPolicyDrift(t *testing.T) {
 	}
 }
 
+func TestNativeHTTPSOriginCertificateSetNormalization(t *testing.T) {
+	withOriginCertificates := func(id string, enabled bool, certificateIDs ...string) map[string]interface{} {
+		raw := nativeHTTPSFixture(id)
+		certificates := make([]interface{}, 0, len(certificateIDs))
+		for _, certificateID := range certificateIDs {
+			certificates = append(certificates, map[string]interface{}{"CertId": certificateID, "Source": "cdn_cert_hosting"})
+		}
+		nativeHTTPSConfig(raw)["OriginCertCheck"] = map[string]interface{}{"Switch": enabled, "CertInfoList": certificates}
+		return raw
+	}
+	beforeRaw := withOriginCertificates("old-cert", true, "ca-alpha", "ca-beta")
+	before, err := decodeHTTPSObservation(beforeRaw, nativeHTTPSTestDomain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name         string
+		certificates []string
+		enabled      bool
+		wantDrift    bool
+	}{
+		{"reordered certificates", []string{"ca-beta", "ca-alpha"}, true, false},
+		{"changed certificate", []string{"ca-alpha", "ca-gamma"}, true, true},
+		{"added certificate", []string{"ca-alpha", "ca-beta", "ca-gamma"}, true, true},
+		{"removed certificate", []string{"ca-alpha"}, true, true},
+		{"empty certificate set", nil, true, true},
+		{"changed verification switch", []string{"ca-alpha", "ca-beta"}, false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			after, err := decodeHTTPSObservation(withOriginCertificates("new-cert", tc.enabled, tc.certificates...), nativeHTTPSTestDomain)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if drift := before.OtherHash != after.OtherHash; drift != tc.wantDrift {
+				t.Fatalf("origin certificate drift = %v, want %v", drift, tc.wantDrift)
+			}
+			api := &nativeHTTPSTestAPI{current: before, reads: []httpsObservation{before, after, after}}
+			r := &domainHTTPSResource{api: api, wait: func(context.Context) error { return nil }, attempts: 4}
+			err = r.updateCertificate(context.Background(), before.Domain, before.CNAME, before.Binding, after.Binding)
+			if (err != nil) != tc.wantDrift || api.updates != 1 {
+				t.Fatalf("convergence: err=%v writes=%d, want drift=%v and one write", err, api.updates, tc.wantDrift)
+			}
+		})
+	}
+	check := nativeHTTPSConfig(beforeRaw)["OriginCertCheck"].(map[string]interface{})
+	if check["CertInfoList"].([]interface{})[0].(map[string]interface{})["CertId"] != "ca-alpha" {
+		t.Fatal("normalization mutated the observed origin certificate list")
+	}
+}
+
 func TestNativeHTTPSIgnoresOperationalReadbackChanges(t *testing.T) {
 	cases := map[string]func(map[string]interface{}){
 		"configuring status":          func(raw map[string]interface{}) { nativeHTTPSConfig(raw)["Status"] = "configuring" },

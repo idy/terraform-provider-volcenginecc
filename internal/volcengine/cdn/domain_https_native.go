@@ -121,6 +121,14 @@ func normalizeHTTPSSettings(settings map[string]interface{}) map[string]interfac
 
 func normalizeOtherCDNConfig(config map[string]interface{}) map[string]interface{} {
 	normalized := pruneHTTPSNulls(config).(map[string]interface{})
+	// OriginCertCheck.CertInfoList is an unordered set in the 0.0.72 schema.
+	// Normalize its order without dropping certificate contents or the switch;
+	// actual origin-trust changes must still fail the drift check.
+	if check, ok := normalized["OriginCertCheck"].(map[string]interface{}); ok {
+		if certificates, ok := check["CertInfoList"].([]interface{}); ok {
+			canonicalJSONSet(certificates)
+		}
+	}
 	if origins, ok := normalized["Origin"].([]interface{}); ok {
 		for _, origin := range origins {
 			if object, ok := origin.(map[string]interface{}); ok {

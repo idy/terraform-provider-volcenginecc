@@ -87,7 +87,6 @@ func serverGroupDataSource(ctx context.Context) (datasource.DataSource, error) {
 		//	      "type": "string"
 		//	    },
 		//	    "HttpVersion": {
-		//	      "default": "HTTP1.0",
 		//	      "description": "Health check HTTP protocol version. This parameter is available only when HealthCheck.Protocol is set to HTTP. Values: HTTP1.0 (default for API usage), HTTP1.1.",
 		//	      "enum": [
 		//	        "HTTP1.0",
@@ -104,7 +103,6 @@ func serverGroupDataSource(ctx context.Context) (datasource.DataSource, error) {
 		//	      "type": "integer"
 		//	    },
 		//	    "Method": {
-		//	      "default": "HEAD",
 		//	      "description": "Health check method after health checks are enabled. This parameter is valid only when HealthCheck.Protocol is set to HTTP. Values: GET: The server must support the GET method. HEAD (default): The server returns only the HEAD header, which reduces backend resource consumption, but the server must support the HEAD method.",
 		//	      "enum": [
 		//	        "GET",
@@ -118,7 +116,6 @@ func serverGroupDataSource(ctx context.Context) (datasource.DataSource, error) {
 		//	      "type": "integer"
 		//	    },
 		//	    "Protocol": {
-		//	      "default": "HTTP",
 		//	      "description": "Health check protocol. Currently supports HTTP and TCP. Default: HTTP.",
 		//	      "enum": [
 		//	        "HTTP",

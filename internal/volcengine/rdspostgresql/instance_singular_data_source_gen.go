@@ -528,6 +528,17 @@ func instanceDataSource(ctx context.Context) (datasource.DataSource, error) {
 			Description: "Instance type. Value: HA (high availability edition)",
 			Computed:    true,
 		}, /*END ATTRIBUTE*/
+		// Property: KMSTrn
+		// Cloud Control resource type schema:
+		//
+		//	{
+		//	  "description": "KMS key ring TRN, format: trn:kms:\u003cregion\u003e:\u003caccount_id\u003e:keyrings/\u003cring_name\u003e/keys/\u003ckey_name\u003e. This parameter is required when TDEEnable is true.",
+		//	  "type": "string"
+		//	}
+		"kms_trn": schema.StringAttribute{ /*START ATTRIBUTE*/
+			Description: "KMS key ring TRN, format: trn:kms:<region>:<account_id>:keyrings/<ring_name>/keys/<key_name>. This parameter is required when TDEEnable is true.",
+			Computed:    true,
+		}, /*END ATTRIBUTE*/
 		// Property: MaintenanceWindow
 		// Cloud Control resource type schema:
 		//
@@ -1042,6 +1053,17 @@ func instanceDataSource(ctx context.Context) (datasource.DataSource, error) {
 			Description: "Subnet ID",
 			Computed:    true,
 		}, /*END ATTRIBUTE*/
+		// Property: TDEEnable
+		// Cloud Control resource type schema:
+		//
+		//	{
+		//	  "description": "Specifies whether to enable the Transparent Data Encryption (TDE) feature. The default value is false (disabled). This feature can only be enabled when creating an instance, and is supported only for PostgreSQL 17 with local SSD storage. Once enabled, it cannot be disabled.",
+		//	  "type": "boolean"
+		//	}
+		"tde_enable": schema.BoolAttribute{ /*START ATTRIBUTE*/
+			Description: "Specifies whether to enable the Transparent Data Encryption (TDE) feature. The default value is false (disabled). This feature can only be enabled when creating an instance, and is supported only for PostgreSQL 17 with local SSD storage. Once enabled, it cannot be disabled.",
+			Computed:    true,
+		}, /*END ATTRIBUTE*/
 		// Property: Tags
 		// Cloud Control resource type schema:
 		//
@@ -1184,6 +1206,7 @@ func instanceDataSource(ctx context.Context) (datasource.DataSource, error) {
 		"instance_type":                    "InstanceType",
 		"ip_address":                       "IPAddress",
 		"key":                              "Key",
+		"kms_trn":                          "KMSTrn",
 		"maintenance_window":               "MaintenanceWindow",
 		"maintenance_window_start_time":    "MaintenanceWindowStartTime",
 		"memory":                           "Memory",
@@ -1224,6 +1247,7 @@ func instanceDataSource(ctx context.Context) (datasource.DataSource, error) {
 		"subnet_id":                        "SubnetId",
 		"tags":                             "Tags",
 		"target_db_instance_account":       "TargetDBInstanceAccount",
+		"tde_enable":                       "TDEEnable",
 		"temp_modify_end_time":             "TempModifyEndTime",
 		"temp_modify_start_time":           "TempModifyStartTime",
 		"temporary":                        "Temporary",

@@ -1189,11 +1189,11 @@ resource_schema "volcengine_vpc_ipam" {
 }
 
 resource_schema "volcengine_vpc_ipam_pool" {
-  cloudcontrol_type_name = "Volcengine::VPC::IpamPool"
+  cloudcontrol_type_name = "Volcengine::VPC::IPAMPool"
 }
 
 resource_schema "volcengine_vpc_ipam_scope" {
-  cloudcontrol_type_name = "Volcengine::VPC::IpamScope"
+  cloudcontrol_type_name = "Volcengine::VPC::IPAMScope"
 }
 
 resource_schema "volcengine_transitrouter_transit_router_attachment_to_route_table" {
@@ -1226,4 +1226,84 @@ resource_schema "volcengine_kafka_acl" {
 
 resource_schema "volcengine_fwcenter_nat_fire_wall" {
   cloudcontrol_type_name = "Volcengine::FWCenter::NATFireWall"
+}
+
+resource_schema "volcengine_ecs_dedicated_host_cluster" {
+  cloudcontrol_type_name = "Volcengine::ECS::DedicatedHostCluster"
+}
+
+resource_schema "volcengine_cr_robot_account" {
+  cloudcontrol_type_name = "Volcengine::CR::RobotAccount"
+}
+
+resource_schema "volcengine_vpc_ipv4_gateway" {
+  cloudcontrol_type_name = "Volcengine::VPC::Ipv4Gateway"
+}
+
+resource_schema "volcengine_redis_key_scan_job" {
+  cloudcontrol_type_name = "Volcengine::Redis::KeyScanJob"
+}
+
+resource_schema "volcengine_iam_api_key" {
+  cloudcontrol_type_name = "Volcengine::IAM::ApiKey"
+}
+
+resource_schema "volcengine_waf_ip_group" {
+  cloudcontrol_type_name = "Volcengine::WAF::IpGroup"
+}
+
+resource_schema "volcengine_waf_system_bot" {
+  cloudcontrol_type_name = "Volcengine::WAF::SystemBot"
+}
+
+resource_schema "volcengine_waf_custom_page" {
+  cloudcontrol_type_name = "Volcengine::WAF::CustomPage"
+}
+
+resource_schema "volcengine_vke_nodepool_scaling_policy" {
+  cloudcontrol_type_name = "Volcengine::VKE::NodepoolScalingPolicy"
+}
+
+resource_schema "volcengine_vpc_ipam_resource_discovery" {
+  cloudcontrol_type_name = "Volcengine::VPC::IPAMResourceDiscovery"
+}
+
+resource_schema "volcengine_transitrouter_transit_router_route_policy_table" {
+  cloudcontrol_type_name = "Volcengine::TransitRouter::TransitRouterRoutePolicyTable"
+}
+
+resource_schema "volcengine_transitrouter_transit_router_forward_policy_entry" {
+  cloudcontrol_type_name = "Volcengine::TransitRouter::TransitRouterForwardPolicyEntry"
+}
+
+resource_schema "volcengine_billing_financial_relation" {
+  cloudcontrol_type_name = "Volcengine::Billing::FinancialRelation"
+}
+
+resource_schema "volcengine_waf_bot_analyse_protect_rule" {
+  cloudcontrol_type_name = "Volcengine::WAF::BotAnalyseProtectRule"
+}
+
+resource_schema "volcengine_waf_custom_bot" {
+  cloudcontrol_type_name = "Volcengine::WAF::CustomBot"
+}
+
+resource_schema "volcengine_securitycenter_agent" {
+  cloudcontrol_type_name = "Volcengine::SecurityCenter::Agent"
+}
+
+resource_schema "volcengine_tidb_instance" {
+  cloudcontrol_type_name = "Volcengine::TiDB::Instance"
+}
+
+resource_schema "volcengine_tidb_branch" {
+  cloudcontrol_type_name = "Volcengine::TiDB::Branch"
+}
+
+resource_schema "volcengine_cloudmonitor_object_group" {
+  cloudcontrol_type_name = "Volcengine::CloudMonitor::ObjectGroup"
+}
+
+resource_schema "volcengine_cloudmonitor_alert_template" {
+  cloudcontrol_type_name = "Volcengine::CloudMonitor::AlertTemplate"
 }
