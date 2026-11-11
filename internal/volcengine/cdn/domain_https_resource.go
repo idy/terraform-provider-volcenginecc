@@ -56,6 +56,22 @@ func (r *domainHTTPSResource) Schema(ctx context.Context, req resource.SchemaReq
 	}
 	origin.PlanModifiers = append([]planmodifier.Set{certificateOriginPreserveUnconfigured()}, origin.PlanModifiers...)
 	resp.Schema.Attributes["origin"] = origin
+	for _, name := range []string{"cache", "browser_cache", "response_header"} {
+		module, ok := resp.Schema.Attributes[name].(schema.SetNestedAttribute)
+		if !ok {
+			resp.Diagnostics.AddError("Unexpected CDN schema", fmt.Sprintf("The %s module is not a nested set.", name))
+			return
+		}
+		module.PlanModifiers = append([]planmodifier.Set{delegatedModulePreserveSet()}, module.PlanModifiers...)
+		resp.Schema.Attributes[name] = module
+	}
+	rewrite, ok := resp.Schema.Attributes["origin_rewrite"].(schema.SingleNestedAttribute)
+	if !ok {
+		resp.Diagnostics.AddError("Unexpected CDN schema", "The origin_rewrite module is not a single nested attribute.")
+		return
+	}
+	rewrite.PlanModifiers = append([]planmodifier.Object{delegatedModulePreserveObject()}, rewrite.PlanModifiers...)
+	resp.Schema.Attributes["origin_rewrite"] = rewrite
 }
 
 func (r *domainHTTPSResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {

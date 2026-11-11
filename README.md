@@ -23,7 +23,11 @@ certificate ID during planning. The domain ID, CNAME and retained HTTPS settings
 stay unchanged; actual origin or other HTTPS configuration changes keep their
 original replacement behavior. The implementation wraps the existing resource,
 so its Terraform address and Cloud Control create/delete/import/refresh ownership
-are preserved.
+are preserved. For delegated cache, browser-cache, response-header and origin-rewrite
+modules, known planned values are matched against the prior policy before
+computed unknowns can request replacement. This also handles ignored bootstrap
+configuration that differs from the live policy. Explicit unknown configuration,
+ambiguous set matching and actual known policy changes retain the original rules.
 
 The native update sends only the domain and retained HTTPS module. It checks the
 candidate certificate and both native/Cloud Control readback, preserves configured
@@ -45,8 +49,10 @@ make test-cdn-certificate-plan
 
 The plan target requires Terraform and Python 3, builds an ignored local binary,
 and never runs Apply. `BASELINE_PROVIDER_BINARY` optionally selects an older
-binary to reproduce the replacement behavior as a regression control. Pull
-requests run the same tests through the CDN certificate workflow.
+binary to reproduce the replacement behavior as a regression control.
+`DELEGATED_BASELINE_PROVIDER_BINARY` selects a binary with the first certificate
+fix to reproduce the ignored nullable delivery-module replacement. Pull requests
+run the synthetic ignored-policy and actual-change cases through the same workflow.
 
 ## Network Mirror Configuration
 

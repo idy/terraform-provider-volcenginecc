@@ -20,7 +20,8 @@ DEFAULT_ORIGIN = [{"origin_action": {"origin_lines": [{
 }]}}]
 
 
-def fixture(binding='"old-certificate"', tls='["tlsv1.2", "tlsv1.3"]', extra="", origin=None, ca=False):
+def fixture(binding='"old-certificate"', tls='["tlsv1.2", "tlsv1.3"]', extra="", origin=None, ca=False,
+            modules=None, ignored=()):
     return '''terraform {
   required_providers {
     volcenginecc = { source = "volcengine/volcenginecc", version = "= PROVIDER_VERSION" }
@@ -47,14 +48,37 @@ resource "volcenginecc_cdn_domain" "legacy" {
     tls_version = TLS
     CA_CHECK
   }
-  lifecycle { prevent_destroy = true }
+  MODULES
+  lifecycle {
+    prevent_destroy = true
+    IGNORED
+  }
 }
 '''.replace("PROVIDER_VERSION", VERSION).replace("BINDING", binding).replace("TLS", tls).replace("ORIGIN", json.dumps(DEFAULT_ORIGIN if origin is None else origin)).replace(
         "CA_CHECK", 'cert_check = { switch = true, cert_info_list = [{cert_id = "ca-certificate", source = "cdn_cert_hosting"}] }' if ca else ""
+    ).replace("MODULES", "\n  ".join(name + " = " + json.dumps(value) for name, value in (modules or {}).items())).replace(
+        "IGNORED", "ignore_changes = [" + ", ".join(ignored) + "]" if ignored else ""
     ) + extra
 
 
-def check_provider(binary, terraform, baseline=False):
+def unordered(value):
+    # All collections in the generated delegated-module schemas are sets.
+    if isinstance(value, dict):
+        return {key: unordered(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return sorted((unordered(item) for item in value), key=lambda item: json.dumps(item, sort_keys=True))
+    return value
+
+
+def has_unknown(value):
+    if isinstance(value, dict):
+        return any(has_unknown(item) for item in value.values())
+    if isinstance(value, list):
+        return any(has_unknown(item) for item in value)
+    return value is True
+
+
+def check_provider(binary, terraform, baseline=False, delegated_baseline=False):
     system = {"Darwin": "darwin", "Linux": "linux"}[platform.system()]
     arch = {"arm64": "arm64", "aarch64": "arm64", "x86_64": "amd64"}[platform.machine()]
     with tempfile.TemporaryDirectory(prefix="cdn-certificate-plan-") as temporary:
@@ -91,16 +115,18 @@ def check_provider(binary, terraform, baseline=False):
         schemas = json.loads(run("providers", "schema", "-json").stdout)
         resource_schema = schemas["provider_schemas"][ADDRESS]["resource_schemas"]["volcenginecc_cdn_domain"]
 
-        def synthetic_value(value, declaration):
+        def synthetic_value(value, declaration, nullable=False):
+            if nullable and value is None:
+                return None
             nested = declaration.get("nested_type")
             if nested:
                 if nested["nesting_mode"] in {"list", "set"}:
                     return [] if value is None else [
-                        {name: synthetic_value(item.get(name), child) for name, child in nested["attributes"].items()}
+                        {name: synthetic_value(item.get(name), child, nullable) for name, child in nested["attributes"].items()}
                         for item in value
                     ]
                 value = value or {}
-                return {name: synthetic_value(value.get(name), child) for name, child in nested["attributes"].items()}
+                return {name: synthetic_value(value.get(name), child, nullable) for name, child in nested["attributes"].items()}
             if value is not None:
                 return value
             kind = declaration["type"]
@@ -133,6 +159,64 @@ def check_provider(binary, terraform, baseline=False):
             assert "Instance cannot be destroyed" in result.stderr, result.stderr
             print("baseline: certificate renewal requests domain replacement and prevent_destroy blocks it")
             return
+
+        # Ignored bootstrap declarations deliberately differ from the policies
+        # already owned by another resource. The prior values are synthetic and
+        # contain null computed children, matching real Cloud Control readback.
+        bootstrap = {
+            "cache": [{"cache_action": {"action": "cache", "ttl": 1}}],
+            "browser_cache": [{"cache_action": {"action": "cache", "ttl": 1}}],
+            "response_header": [{"response_header_action": {"response_header_instances": [
+                {"action": "set", "key": "X-Fixture", "value": "bootstrap", "value_type": "constant"}
+            ]}}],
+            "origin_rewrite": {"switch": True, "origin_rewrite_rule": [
+                {"origin_rewrite_action": {"source_path": "/bootstrap", "target_path": "/initial"}}
+            ]},
+        }
+        retained = json.loads(json.dumps(bootstrap))
+        for name in ("cache", "browser_cache"):
+            retained[name][0]["cache_action"]["ttl"] = 60
+            retained[name].append({"cache_action": {"action": "cache", "ttl": 3600},
+                                   "condition": {"connective": "OR", "condition_rule": [
+                                       {"object": "path", "operator": "match", "type": "url", "value": "/assets/*"}]}})
+        retained["response_header"][0]["response_header_action"]["response_header_instances"][0]["value"] = "retained"
+        retained["origin_rewrite"]["origin_rewrite_rule"][0]["origin_rewrite_action"].update(
+            source_path="/retained", target_path="/current")
+        retained["origin_rewrite"]["origin_rewrite_rule"].append({
+            "origin_rewrite_action": {"source_path": "/assets", "target_path": "/static", "rewrite_type": "rewrite_path"}})
+        delegated = json.loads(json.dumps(checkpoint))
+        delegated_values = delegated["resources"][0]["instances"][0]["attributes"]
+        for name, value in retained.items():
+            delegated_values[name] = synthetic_value(value, resource_schema["block"]["attributes"][name], nullable=True)
+        (root / "terraform.tfstate").write_text(json.dumps(delegated))
+        delegated_config = fixture('"new-certificate"', modules=bootstrap, ignored=tuple(bootstrap))
+        if delegated_baseline:
+            result = plan(delegated_config, allowed=(1,))
+            assert "Instance cannot be destroyed" in result.stderr, result.stderr
+            actual = change()
+            assert {path[0] for path in actual.get("replace_paths", [])} == set(bootstrap), actual.get("replace_paths")
+            print("previous certificate fix: ignored nullable delivery modules still request replacement (regression control)")
+            return
+        for label, config in [
+            ("known certificate", delegated_config),
+            ("unknown certificate", fixture("terraform_data.next_certificate.output", modules=bootstrap,
+                ignored=tuple(bootstrap), extra='\nresource "terraform_data" "next_certificate" { input = "new-certificate" }\n')),
+        ]:
+            plan(config)
+            actual = change()
+            assert actual["actions"] == ["update"] and not actual.get("replace_paths"), actual
+            assert actual["after"]["id"] == values["id"] and actual["after"]["cname"] == values["cname"]
+            for name in retained:
+                assert unordered(actual["after"][name]) == unordered(delegated_values[name]), name
+                assert not has_unknown(actual["after_unknown"].get(name)), name
+            print(f"patched delegated modules, {label}: retained live policies despite divergent bootstrap, stable ID/CNAME")
+        for name in bootstrap:
+            result = plan(fixture('"new-certificate"', modules=bootstrap,
+                                 ignored=tuple(key for key in bootstrap if key != name)), allowed=(1,))
+            assert "Instance cannot be destroyed" in result.stderr, result.stderr
+            assert [name] in change().get("replace_paths", []), (name, change().get("replace_paths"))
+            print(f"patched genuine {name} change: original replacement protection retained")
+        (root / "terraform.tfstate").write_text(json.dumps(checkpoint))
 
         for label, config, unknown in [
             ("known certificate", fixture('"new-certificate"'), False),
@@ -198,18 +282,21 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--provider", type=Path)
     parser.add_argument("--baseline-provider", type=Path)
+    parser.add_argument("--delegated-baseline-provider", type=Path)
     parser.add_argument("--terraform", default=shutil.which("terraform"))
     arguments = parser.parse_args()
     if not arguments.terraform:
         parser.error("Terraform is required")
     if arguments.provider is None:
         arguments.provider = ROOT / "bin/terraform-provider-volcenginecc"
-    for binary in [arguments.provider, arguments.baseline_provider]:
+    for binary in [arguments.provider, arguments.baseline_provider, arguments.delegated_baseline_provider]:
         if binary is not None and (not binary.is_file() or not os.access(binary, os.X_OK)):
             parser.error("provider must be an existing executable")
     check_provider(arguments.provider.resolve(), arguments.terraform)
     if arguments.baseline_provider:
         check_provider(arguments.baseline_provider.resolve(), arguments.terraform, baseline=True)
+    if arguments.delegated_baseline_provider:
+        check_provider(arguments.delegated_baseline_provider.resolve(), arguments.terraform, delegated_baseline=True)
 
 
 if __name__ == "__main__":
