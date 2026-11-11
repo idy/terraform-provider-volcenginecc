@@ -55,7 +55,7 @@ test-cdn-certificate: prereq-go ## Test CDN certificate updates without cloud cr
 test-cdn-certificate-plan: prereq-go ## Build and verify certificate-only Terraform plans in disposable state
 	@mkdir -p bin
 	GOWORK=off $(GO_VER) build -o bin/terraform-provider-volcenginecc .
-	python3 scripts/test-cdn-certificate-plan.py $(if $(BASELINE_PROVIDER_BINARY),--baseline-provider "$(BASELINE_PROVIDER_BINARY)",)
+	python3 scripts/test-cdn-certificate-plan.py $(if $(BASELINE_PROVIDER_BINARY),--baseline-provider "$(BASELINE_PROVIDER_BINARY)",) $(if $(DELEGATED_BASELINE_PROVIDER_BINARY),--delegated-baseline-provider "$(DELEGATED_BASELINE_PROVIDER_BINARY)",)
 
 testacc: prereq-go ## Run acceptance tests
 	TF_ACC=1 $(GO_VER) test ./$(PKG_NAME) -v -count $(TEST_COUNT) -parallel $(ACCTEST_PARALLELISM) $(TESTARGS) -timeout $(ACCTEST_TIMEOUT)

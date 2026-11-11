@@ -34,14 +34,16 @@ func TestDomainHTTPSResourceSchema(t *testing.T) {
 		t.Fatalf("HTTPS modifiers = %d, want state preservation and bounded replacement", len(https.PlanModifiers))
 	}
 	for name, before := range fixture.schema.Attributes {
-		if name == "origin" {
+		if name == "origin" || name == "cache" || name == "browser_cache" || name == "response_header" {
 			prior := before.(schema.SetNestedAttribute)
 			after := resp.Schema.Attributes[name].(schema.SetNestedAttribute)
 			if len(after.PlanModifiers) != len(prior.PlanModifiers)+1 {
 				t.Fatalf("origin modifiers = %d, want %d", len(after.PlanModifiers), len(prior.PlanModifiers)+1)
 			}
-			if _, ok := after.PlanModifiers[0].(certificateOriginPreserveUnconfiguredModifier); !ok {
-				t.Errorf("origin's first modifier = %T, want preservation before original replacement", after.PlanModifiers[0])
+			if name == "origin" {
+				if _, ok := after.PlanModifiers[0].(certificateOriginPreserveUnconfiguredModifier); !ok {
+					t.Errorf("origin's first modifier = %T, want preservation before original replacement", after.PlanModifiers[0])
+				}
 			}
 			for index, modifier := range prior.PlanModifiers {
 				actual := after.PlanModifiers[index+1]
@@ -54,6 +56,24 @@ func TestDomainHTTPSResourceSchema(t *testing.T) {
 			after.PlanModifiers = prior.PlanModifiers
 			if !reflect.DeepEqual(prior, after) {
 				t.Error("wrapper changed original origin schema")
+			}
+			continue
+		}
+		if name == "origin_rewrite" {
+			prior := before.(schema.SingleNestedAttribute)
+			after := resp.Schema.Attributes[name].(schema.SingleNestedAttribute)
+			if len(after.PlanModifiers) != len(prior.PlanModifiers)+1 {
+				t.Fatalf("%s modifiers = %d, want %d", name, len(after.PlanModifiers), len(prior.PlanModifiers)+1)
+			}
+			for index, modifier := range prior.PlanModifiers {
+				actual := after.PlanModifiers[index+1]
+				if reflect.TypeOf(actual) != reflect.TypeOf(modifier) || actual.Description(context.Background()) != modifier.Description(context.Background()) || actual.MarkdownDescription(context.Background()) != modifier.MarkdownDescription(context.Background()) {
+					t.Errorf("wrapper changed original %s modifier %d", name, index)
+				}
+			}
+			after.PlanModifiers = prior.PlanModifiers
+			if !reflect.DeepEqual(prior, after) {
+				t.Errorf("wrapper changed original %s schema", name)
 			}
 			continue
 		}
@@ -401,7 +421,7 @@ func newDomainHTTPSResourceFixture(t *testing.T) domainHTTPSResourceFixture {
 		t.Fatal(response.Diagnostics)
 	}
 	attributes := make(map[string]schema.Attribute)
-	for _, name := range []string{"https", "origin", "domain", "id", "cname", "updated_time"} {
+	for _, name := range []string{"https", "origin", "cache", "browser_cache", "response_header", "origin_rewrite", "domain", "id", "cname", "updated_time"} {
 		attributes[name] = response.Schema.Attributes[name]
 	}
 	fixture := domainHTTPSResourceFixture{schema: schema.Schema{Attributes: attributes}}
